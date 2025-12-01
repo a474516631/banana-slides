@@ -105,31 +105,6 @@
 - **并发处理**：ThreadPoolExecutor
 - **跨域支持**：Flask-CORS
 
-### 项目架构
-
-```
-banana-slides/
-├── frontend/              # React前端
-│   ├── src/
-│   │   ├── pages/        # 页面组件
-│   │   ├── components/   # UI组件
-│   │   ├── store/        # Zustand状态管理
-│   │   ├── api/          # API接口
-│   │   └── types/        # TypeScript类型
-│   └── package.json
-│
-├── backend/              # Flask后端
-│   ├── app.py           # 应用入口
-│   ├── models/          # 数据模型
-│   ├── services/        # 业务逻辑
-│   ├── controllers/     # API控制器
-│   └── utils/           # 工具函数
-│
-└── docs/                # 文档
-    ├── PRD.md
-    ├── API设计文档.md
-    └── 快速启动指南.md
-```
 
 ## 📦 安装说明
 
@@ -369,27 +344,6 @@ docker run -d \
 
 </details>
 
-### 生产环境建议
-
-1. **使用 Gunicorn**：在生产环境中，建议使用 Gunicorn 替代 Flask 开发服务器
-
-修改 `backend/Dockerfile` 的 CMD：
-```dockerfile
-CMD ["uv", "run", "--directory", "backend", "gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app:app"]
-```
-
-2. **HTTPS 支持**：配置 nginx SSL 证书，启用 HTTPS
-
-3. **资源限制**：在 `docker-compose.yml` 中添加资源限制：
-```yaml
-services:
-  backend:
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-```
 
 4. **备份策略**：定期备份 `backend/instance` 和 `uploads` 目录
 
