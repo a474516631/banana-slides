@@ -4,7 +4,6 @@ Simplified Flask Application Entry Point
 import os
 import sys
 import logging
-import builtins
 from dotenv import load_dotenv
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -91,24 +90,6 @@ def create_app():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
     logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
-
-    # Redirect all built-in print calls to logging for real-time visibility in Docker
-    # This avoids having to manually change hundreds of print statements.
-    original_print = builtins.print
-    logger = logging.getLogger("app.print")
-
-    def _print_to_log(*args, **kwargs):
-        """
-        Replacement for built-in print, writing to logging instead.
-        We ignore file=... and always log at INFO level.
-        """
-        # Join like print would do
-        sep = kwargs.get("sep", " ")
-        end = kwargs.get("end", "\n")
-        msg = sep.join(str(a) for a in args) + ("" if end == "" else "")
-        logger.info(msg)
-
-    builtins.print = _print_to_log
 
     # Initialize extensions
     db.init_app(app)

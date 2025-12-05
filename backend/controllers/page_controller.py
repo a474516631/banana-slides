@@ -1,6 +1,7 @@
 """
 Page Controller - handles page-related endpoints
 """
+import logging
 from flask import Blueprint, request, current_app
 from models import db, Project, Page, PageImageVersion, Task
 from utils import success_response, error_response, not_found, bad_request
@@ -12,6 +13,8 @@ from werkzeug.utils import secure_filename
 import shutil
 import tempfile
 import json
+
+logger = logging.getLogger(__name__)
 
 page_bp = Blueprint('pages', __name__, url_prefix='/api/projects')
 
@@ -388,7 +391,7 @@ def generate_page_image(project_id, page_id):
         if desc_text:
             image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
             if image_urls:
-                print(f"[INFO] Found {len(image_urls)} image(s) in page {page_id} description")
+                logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
                 additional_ref_images = image_urls
                 has_material_images = True
         

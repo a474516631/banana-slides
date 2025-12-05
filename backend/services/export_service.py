@@ -3,12 +3,15 @@ Export Service - handles PPTX and PDF export
 Based on demo.py create_pptx_from_images()
 """
 import os
+import logging
 from pathlib import Path
 from typing import List
 from pptx import Presentation
 from pptx.util import Inches
 from PIL import Image
 import io
+
+logger = logging.getLogger(__name__)
 
 
 class ExportService:
@@ -37,7 +40,7 @@ class ExportService:
         # Add each image as a slide
         for image_path in image_paths:
             if not os.path.exists(image_path):
-                print(f"Warning: Image not found: {image_path}")
+                logger.warning(f"Image not found: {image_path}")
                 continue
             
             # Add blank slide layout (layout 6 is typically blank)
@@ -81,7 +84,7 @@ class ExportService:
         # Load all images
         for image_path in image_paths:
             if not os.path.exists(image_path):
-                print(f"Warning: Image not found: {image_path}")
+                logger.warning(f"Image not found: {image_path}")
                 continue
             
             img = Image.open(image_path)

@@ -1,6 +1,7 @@
 """
 Project Controller - handles project-related endpoints
 """
+import logging
 from flask import Blueprint, request, jsonify
 from models import db, Project, Page, Task
 from utils import success_response, error_response, not_found, bad_request
@@ -9,6 +10,8 @@ from services.task_manager import task_manager, generate_descriptions_task, gene
 import json
 import traceback
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
 
@@ -86,8 +89,7 @@ def create_project():
     except Exception as e:
         db.session.rollback()
         error_trace = traceback.format_exc()
-        print(f"[ERROR] create_project failed: {str(e)}")
-        print(error_trace)
+        logger.error(f"create_project failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
@@ -259,7 +261,7 @@ def generate_outline(project_id):
         
         db.session.commit()
         
-        print(f"[INFO] 大纲生成完成: 项目 {project_id}, 创建了 {len(pages_list)} 个页面")
+        logger.info(f"大纲生成完成: 项目 {project_id}, 创建了 {len(pages_list)} 个页面")
         
         # Return pages
         return success_response({
@@ -268,9 +270,7 @@ def generate_outline(project_id):
     
     except Exception as e:
         db.session.rollback()
-        error_trace = traceback.format_exc()  
-        print(f"[ERROR] generate_outline failed: {str(e)}")  
-        print(error_trace)  
+        logger.error(f"generate_outline failed: {str(e)}", exc_info=True)
         return error_response('AI_SERVICE_ERROR', str(e), 503)
 
 
@@ -315,23 +315,23 @@ def generate_from_description(project_id):
             current_app.config['GOOGLE_API_BASE']
         )
         
-        print(f"[INFO] 开始从描述生成大纲和页面描述: 项目 {project_id}")
+        logger.info(f"开始从描述生成大纲和页面描述: 项目 {project_id}")
         
         # Step 1: Parse description to outline
-        print(f"[INFO] Step 1: 解析描述文本到大纲结构...")
+        logger.info("Step 1: 解析描述文本到大纲结构...")
         outline = ai_service.parse_description_to_outline(description_text)
-        print(f"[INFO] 大纲解析完成，共 {len(ai_service.flatten_outline(outline))} 页")
+        logger.info(f"大纲解析完成，共 {len(ai_service.flatten_outline(outline))} 页")
         
         # Step 2: Split description into page descriptions
-        print(f"[INFO] Step 2: 切分描述文本到每页描述...")
+        logger.info("Step 2: 切分描述文本到每页描述...")
         page_descriptions = ai_service.parse_description_to_page_descriptions(description_text, outline)
-        print(f"[INFO] 描述切分完成，共 {len(page_descriptions)} 页")
+        logger.info(f"描述切分完成，共 {len(page_descriptions)} 页")
         
         # Step 3: Flatten outline to pages
         pages_data = ai_service.flatten_outline(outline)
         
         if len(pages_data) != len(page_descriptions):
-            print(f"[WARNING] 页面数量不匹配: 大纲 {len(pages_data)} 页, 描述 {len(page_descriptions)} 页")
+            logger.warning(f"页面数量不匹配: 大纲 {len(pages_data)} 页, 描述 {len(page_descriptions)} 页")
             # 取较小的数量，避免索引错误
             min_count = min(len(pages_data), len(page_descriptions))
             pages_data = pages_data[:min_count]
@@ -372,7 +372,7 @@ def generate_from_description(project_id):
         
         db.session.commit()
         
-        print(f"[INFO] 从描述生成完成: 项目 {project_id}, 创建了 {len(pages_list)} 个页面，已填充大纲和描述")
+        logger.info(f"从描述生成完成: 项目 {project_id}, 创建了 {len(pages_list)} 个页面，已填充大纲和描述")
         
         # Return pages
         return success_response({
@@ -382,9 +382,7 @@ def generate_from_description(project_id):
     
     except Exception as e:
         db.session.rollback()
-        error_trace = traceback.format_exc()
-        print(f"[ERROR] generate_from_description failed: {str(e)}")
-        print(error_trace)
+        logger.error(f"generate_from_description failed: {str(e)}", exc_info=True)
         return error_response('AI_SERVICE_ERROR', str(e), 503)
 
 

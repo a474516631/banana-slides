@@ -6,6 +6,7 @@ TODO: use structured output API
 import os
 import json
 import re
+import logging
 import requests
 from typing import List, Dict, Optional, Union
 from textwrap import dedent
@@ -21,6 +22,8 @@ from .prompts import (
     get_description_to_outline_prompt,
     get_description_split_prompt
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AIService:
@@ -73,7 +76,7 @@ class AIService:
             PIL Image 对象，如果下载失败则返回 None
         """
         try:
-            print(f"[DEBUG] Downloading image from URL: {url}")
+            logger.debug(f"Downloading image from URL: {url}")
             response = requests.get(url, timeout=30, stream=True)
             response.raise_for_status()
             
@@ -81,10 +84,10 @@ class AIService:
             image = Image.open(response.raw)
             # 确保图片被加载
             image.load()
-            print(f"[DEBUG] Successfully downloaded image: {image.size}, {image.mode}")
+            logger.debug(f"Successfully downloaded image: {image.size}, {image.mode}")
             return image
         except Exception as e:
-            print(f"[ERROR] Failed to download image from {url}: {str(e)}")
+            logger.error(f"Failed to download image from {url}: {str(e)}")
             return None
     
     def generate_outline(self, idea_prompt: str) -> List[Dict]:
@@ -260,11 +263,11 @@ class AIService:
             Exception with detailed error message if generation fails
         """
         try:
-            print(f"[DEBUG] Generating image with prompt (first 100 chars): {prompt[:1000]}...")
-            print(f"[DEBUG] Reference image: {ref_image_path}")
+            logger.debug(f"Generating image with prompt (first 100 chars): {prompt[:1000]}...")
+            logger.debug(f"Reference image: {ref_image_path}")
             if additional_ref_images:
-                print(f"[DEBUG] Additional reference images: {len(additional_ref_images)}")
-            print(f"[DEBUG] Config - aspect_ratio: {aspect_ratio}, resolution: {resolution}")
+                logger.debug(f"Additional reference images: {len(additional_ref_images)}")
+            logger.debug(f"Config - aspect_ratio: {aspect_ratio}, resolution: {resolution}")
 
             # 构建 contents 列表，包含 prompt 和所有参考图片
             # 约定：如果有主参考图，则放在第一个索引，其后是文本 prompt，再后是其他参考图
@@ -297,11 +300,11 @@ class AIService:
                             if downloaded_img:
                                 contents.append(downloaded_img)
                             else:
-                                print(f"[WARNING] Failed to download image from URL: {ref_img}, skipping...")
+                                logger.warning(f"Failed to download image from URL: {ref_img}, skipping...")
                         else:
-                            print(f"[WARNING] Invalid image reference: {ref_img}, skipping...")
+                            logger.warning(f"Invalid image reference: {ref_img}, skipping...")
             
-            print(f"[DEBUG] Calling Gemini API for image generation with {len(contents) - 1} reference images...")
+            logger.debug(f"Calling Gemini API for image generation with {len(contents) - 1} reference images...")
             response = self.client.models.generate_content(
                 model=self.image_model,
                 contents=contents,
@@ -313,23 +316,23 @@ class AIService:
                     ),
                 )
             )
-            print(f"[DEBUG] Gemini API call completed")
+            logger.debug("Gemini API call completed")
             
-            print(f"[DEBUG] API response received, checking parts...")
+            logger.debug("API response received, checking parts...")
             for i, part in enumerate(response.parts):
                 if part.text is not None:   
-                    print(f"[DEBUG] Part {i}: TEXT - {part.text[:100]}")
+                    logger.debug(f"Part {i}: TEXT - {part.text[:100]}")
                 else:
                     # Try to get image from part
                     try:
-                        print(f"[DEBUG] Part {i}: Attempting to extract image...")
+                        logger.debug(f"Part {i}: Attempting to extract image...")
                         image = part.as_image()
                         if image:
                             # Don't check image.size - it might not be a standard PIL Image yet
-                            print(f"[DEBUG] Successfully extracted image from part {i}")
+                            logger.debug(f"Successfully extracted image from part {i}")
                             return image
                     except Exception as e:
-                        print(f"[DEBUG] Part {i}: Failed to extract image - {str(e)}")
+                        logger.debug(f"Part {i}: Failed to extract image - {str(e)}")
             
             # If we get here, no image was found in the response
             error_msg = "No image found in API response. "
@@ -342,9 +345,7 @@ class AIService:
             
         except Exception as e:
             error_detail = f"Error generating image: {type(e).__name__}: {str(e)}"
-            print(f"[ERROR] {error_detail}")
-            import traceback
-            traceback.print_exc()
+            logger.error(error_detail, exc_info=True)
             raise Exception(error_detail) from e
     
     def edit_image(self, prompt: str, current_image_path: str,

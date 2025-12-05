@@ -1,11 +1,14 @@
 """
 Template Controller - handles template-related endpoints
 """
+import logging
 from flask import Blueprint, request, current_app
 from models import db, Project, UserTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 template_bp = Blueprint('templates', __name__, url_prefix='/api/projects')
 user_template_bp = Blueprint('user_templates', __name__, url_prefix='/api/user-templates')
@@ -162,13 +165,9 @@ def upload_user_template():
     
     except Exception as e:
         import traceback
-        import sys
         db.session.rollback()
         error_msg = str(e)
-        traceback_str = traceback.format_exc()
-        # 输出到 stderr 确保能看到
-        print(f"Error uploading user template: {error_msg}", file=sys.stderr)
-        print(traceback_str, file=sys.stderr)
+        logger.error(f"Error uploading user template: {error_msg}", exc_info=True)
         # 在开发环境中返回详细错误，生产环境返回通用错误
         if current_app.config.get('DEBUG', False):
             return error_response('SERVER_ERROR', f"{error_msg}\n{traceback_str}", 500)

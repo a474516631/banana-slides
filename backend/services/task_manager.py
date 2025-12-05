@@ -2,11 +2,14 @@
 Task Manager - handles background tasks using ThreadPoolExecutor
 No need for Celery or Redis, uses in-memory task tracking
 """
+import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, List, Dict, Any
 from datetime import datetime
 from models import db, Task, Page
+
+logger = logging.getLogger(__name__)
 
 
 class TaskManager:
@@ -66,12 +69,12 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             # 重要：在后台线程开始时就获取task和设置状态
             task = Task.query.get(task_id)
             if not task:
-                print(f"[ERROR] Task {task_id} not found")
+                logger.error(f"Task {task_id} not found")
                 return
             
             task.status = 'PROCESSING'
             db.session.commit()
-            print(f"[INFO] Task {task_id} status updated to PROCESSING")
+            logger.info(f"Task {task_id} status updated to PROCESSING")
             
             # Flatten outline to get pages
             pages_data = ai_service.flatten_outline(outline)
@@ -117,7 +120,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                     except Exception as e:
                         import traceback
                         error_detail = traceback.format_exc()
-                        print(f"[ERROR] Failed to generate description for page {page_id}: {error_detail}")
+                        logger.error(f"Failed to generate description for page {page_id}: {error_detail}")
                         return (page_id, None, str(e))
             
             # Use ThreadPoolExecutor for parallel generation
@@ -150,7 +153,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                     if task:
                         task.update_progress(completed=completed, failed=failed)
                         db.session.commit()
-                        print(f"[INFO] Description Progress: {completed}/{len(pages)} pages completed")
+                        logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
             
             # Mark task as completed
             task = Task.query.get(task_id)
@@ -158,7 +161,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 task.status = 'COMPLETED'
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
-                print(f"[INFO] Task {task_id} COMPLETED - {completed} pages generated, {failed} failed")
+                logger.info(f"Task {task_id} COMPLETED - {completed} pages generated, {failed} failed")
             
             # Update project status
             from models import Project
@@ -166,7 +169,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             if project and failed == 0:
                 project.status = 'DESCRIPTIONS_GENERATED'
                 db.session.commit()
-                print(f"[INFO] Project {project_id} status updated to DESCRIPTIONS_GENERATED")
+                logger.info(f"Project {project_id} status updated to DESCRIPTIONS_GENERATED")
         
         except Exception as e:
             # Mark task as failed
@@ -234,7 +237,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 # 关键修复：在子线程中也需要应用上下文
                 with app.app_context():
                     try:
-                        print(f"[DEBUG] Starting image generation for page {page_id}, index {page_index}")
+                        logger.debug(f"Starting image generation for page {page_id}, index {page_index}")
                         # Get page from database in this thread
                         page_obj = Page.query.get(page_id)
                         if not page_obj:
@@ -243,7 +246,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         # Update page status
                         page_obj.status = 'GENERATING'
                         db.session.commit()
-                        print(f"[DEBUG] Page {page_id} status updated to GENERATING")
+                        logger.debug(f"Page {page_id} status updated to GENERATING")
                         
                         # Get description content
                         desc_content = page_obj.get_description_content()
@@ -260,7 +263,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             else:
                                 desc_text = str(text_content)
                         
-                        print(f"[DEBUG] Got description text for page {page_id}: {desc_text[:100]}...")
+                        logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
                         
                         # 从当前页面的描述内容中提取图片 URL
                         page_additional_ref_images = []
@@ -270,7 +273,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         if desc_text:
                             image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
                             if image_urls:
-                                print(f"[INFO] Found {len(image_urls)} image(s) in page {page_id} description")
+                                logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
                                 page_additional_ref_images = image_urls
                                 has_material_images = True
                         
@@ -280,15 +283,15 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             has_material_images=has_material_images,
                             extra_requirements=extra_requirements
                         )
-                        print(f"[DEBUG] Generated image prompt for page {page_id}")
+                        logger.debug(f"Generated image prompt for page {page_id}")
                         
                         # Generate image
-                        print(f"[INFO] 🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
+                        logger.info(f"🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
                         image = ai_service.generate_image(
                             prompt, ref_image_path, aspect_ratio, resolution,
                             additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
                         )
-                        print(f"[INFO] ✅ Image generated successfully for page {page_index}")
+                        logger.info(f"✅ Image generated successfully for page {page_index}")
                         
                         if not image:
                             raise ValueError("Failed to generate image")
@@ -303,7 +306,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                     except Exception as e:
                         import traceback
                         error_detail = traceback.format_exc()
-                        print(f"[ERROR] Failed to generate image for page {page_id}: {error_detail}")
+                        logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
                         return (page_id, None, str(e))
             
             # Use ThreadPoolExecutor for parallel generation
@@ -336,7 +339,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                     if task:
                         task.update_progress(completed=completed, failed=failed)
                         db.session.commit()
-                        print(f"[INFO] Image Progress: {completed}/{len(pages)} pages completed")
+                        logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
             
             # Mark task as completed
             task = Task.query.get(task_id)
@@ -344,7 +347,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 task.status = 'COMPLETED'
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
-                print(f"[INFO] Task {task_id} COMPLETED - {completed} images generated, {failed} failed")
+                logger.info(f"Task {task_id} COMPLETED - {completed} images generated, {failed} failed")
             
             # Update project status
             from models import Project
@@ -352,7 +355,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             if project and failed == 0:
                 project.status = 'COMPLETED'
                 db.session.commit()
-                print(f"[INFO] Project {project_id} status updated to COMPLETED")
+                logger.info(f"Project {project_id} status updated to COMPLETED")
         
         except Exception as e:
             # Mark task as failed
@@ -417,7 +420,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             if desc_text:
                 image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
                 if image_urls:
-                    print(f"[INFO] Found {len(image_urls)} image(s) in page {page_id} description")
+                    logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
                     additional_ref_images = image_urls
                     has_material_images = True
             
@@ -441,7 +444,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             )
             
             # Generate image
-            print(f"[INFO] 🎨 Generating image for page {page_id}...")
+            logger.info(f"🎨 Generating image for page {page_id}...")
             image = ai_service.generate_image(
                 prompt, ref_image_path, aspect_ratio, resolution,
                 additional_ref_images=additional_ref_images if additional_ref_images else None
@@ -489,12 +492,12 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             })
             db.session.commit()
             
-            print(f"[INFO] ✅ Task {task_id} COMPLETED - Page {page_id} image generated")
+            logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image generated")
         
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
-            print(f"[ERROR] Task {task_id} FAILED: {error_detail}")
+            logger.error(f"Task {task_id} FAILED: {error_detail}")
             
             # Mark task as failed
             task = Task.query.get(task_id)
@@ -551,7 +554,7 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             current_image_path = file_service.get_absolute_path(page.generated_image_path)
             
             # Edit image
-            print(f"[INFO] 🎨 Editing image for page {page_id}...")
+            logger.info(f"🎨 Editing image for page {page_id}...")
             try:
                 image = ai_service.edit_image(
                     edit_instruction,
@@ -612,12 +615,12 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             })
             db.session.commit()
             
-            print(f"[INFO] ✅ Task {task_id} COMPLETED - Page {page_id} image edited")
+            logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image edited")
         
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
-            print(f"[ERROR] Task {task_id} FAILED: {error_detail}")
+            logger.error(f"Task {task_id} FAILED: {error_detail}")
             
             # Clean up temp directory on error
             if temp_dir:
