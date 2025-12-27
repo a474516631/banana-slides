@@ -33,6 +33,15 @@ class Project(db.Model):
     
     def to_dict(self, include_pages=False):
         """Convert to dictionary"""
+        # Format created_at and updated_at with UTC timezone indicator for proper frontend parsing
+        created_at_str = None
+        if self.created_at:
+            created_at_str = self.created_at.isoformat() + 'Z' if not self.created_at.tzinfo else self.created_at.isoformat()
+        
+        updated_at_str = None
+        if self.updated_at:
+            updated_at_str = self.updated_at.isoformat() + 'Z' if not self.updated_at.tzinfo else self.updated_at.isoformat()
+        
         data = {
             'project_id': self.id,
             'idea_prompt': self.idea_prompt,
@@ -42,8 +51,8 @@ class Project(db.Model):
             'creation_type': self.creation_type,
             'template_image_url': f'/files/{self.id}/template/{self.template_image_path.split("/")[-1]}' if self.template_image_path else None,
             'status': self.status,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'created_at': created_at_str,
+            'updated_at': updated_at_str,
         }
         
         if include_pages:
